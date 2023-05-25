@@ -1,4 +1,4 @@
-## Introduction EEGEyeNet
+## Introducing EEGEyeNet
 
 EEGEyeNet is a benchmark to evaluate ET prediction based on EEG measurements with an increasing level of difficulty.
 
