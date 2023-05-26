@@ -1,8 +1,9 @@
-## Introducing EEGEyeNet
-
-EEGEyeNet is a benchmark to evaluate ET prediction based on EEG measurements with an increasing level of difficulty.
+## EEG-Vision Transformer (EEGViT)
 
 ## Overview
+EEGViT is a hybrid Vision Transformer (ViT) incorporated with Depthwise Convolution in patch embedding layers. This work is based on 
+
+
 
 The repository consists of general functionality to run the benchmark and custom implementation of different machine learning models. We offer to run standard ML models (e.g. kNN, SVR, etc.) on the benchmark. The implementation can be found in the StandardML_Models directory.
 
