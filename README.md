@@ -24,47 +24,17 @@ conda env create -f eegeyenet_benchmark.yml
 
 Otherwise you can also only create a minimal environment that is able to run the models that you want to try (see following section).
 
-### General Requirements
-
-Create a new conda environment:
-
-```bash
-conda create -n eegeyenet_benchmark python=3.8.5 
-```
+### Requirements
 
 First install the general_requirements.txt
 
 ```bash
-conda install --file general_requirements.txt 
+pip3 install -r general_requirements.txt 
 ```
 
-### Pytorch Requirements
+## Pytorch Requirements
 
-If you want to run the pytorch DL models, first install pytorch in the recommended way. For Linux users with GPU support this is:
-
-```bash
-conda install pytorch torchvision torchaudio cudatoolkit=10.2 -c pytorch 
-```
-
-For other installation types and cuda versions, visit [pytorch.org](https://pytorch.org/get-started/locally/).
-
-### Tensorflow Requirements
-
-If you want to run the tensorflow DL models, run
-
-```bash
-conda install --file tensorflow_requirements.txt 
-```
-
-### Standard ML Requirements
-
-If you want to run the standard ML models, run
-
-```bash
-conda install --file standard_ml_requirements.txt 
-```
-
-This should be installed after installing pytorch to not risk any dependency issues that have to be resolved by conda.
+For installation details and cuda versions, visit [pytorch.org](https://pytorch.org/get-started/locally/).
 
 ## Configuration
 

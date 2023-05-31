@@ -1,16 +1,9 @@
 import torch
 import transformers
 from transformers import ViTModel
-from torchvision import transforms
-from torch.utils.data import DataLoader
-from tqdm import tqdm
-import PIL
-import numpy as np
 import torch
-from torch.utils.data import Dataset, TensorDataset
 from torch import nn
 import transformers
-from torchvision import transforms
 
 class EEGViT_raw(nn.Module):
     def __init__(self, ViTLayers):
@@ -20,7 +13,7 @@ class EEGViT_raw(nn.Module):
             out_channels=256,
             kernel_size=(1, 36),
             stride=(1, 36),
-            padding=(0,6),
+            padding=(0,2),
             bias=False
         )
         self.batchnorm1 = nn.BatchNorm2d(256, False)

@@ -1,16 +1,9 @@
 import torch
 import transformers
 from transformers import ViTModel
-from torchvision import transforms
-from torch.utils.data import DataLoader
-from tqdm import tqdm
-import PIL
-import numpy as np
 import torch
-from torch.utils.data import Dataset, TensorDataset
 from torch import nn
 import transformers
-from torchvision import transforms
 
 class ViTBase_pretrained(nn.Module):
     def __init__(self):

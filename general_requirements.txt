@@ -1,6 +1,5 @@
 pandas
 numpy 
-scipy 
-scikit-learn
-pytorch torchvision pytorch-cuda=11.7 -c pytorch -c nvidia
+scipy
 transformers
+tqdm
