@@ -29,7 +29,7 @@ pip3 install -r general_requirements.txt
 pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu117
 ```
 
-For installation details and cuda versions, visit [pytorch.org](https://pytorch.org/get-started/locally/).
+For other installation details and different cuda versions, visit [pytorch.org](https://pytorch.org/get-started/locally/).
 
 ## Configuration
 
