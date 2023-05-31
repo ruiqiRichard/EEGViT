@@ -1,0 +1,1581 @@
+{
+ "cells": [
+  {
+   "attachments": {},
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Raw model"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 26,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import torch\n",
+    "import transformers\n",
+    "from transformers import ViTModel\n",
+    "from torchvision import transforms\n",
+    "from torch.utils.data import DataLoader\n",
+    "from tqdm import tqdm\n",
+    "# from datasets import load_dataset\n",
+    "import PIL\n",
+    "import numpy as np\n",
+    "import torch\n",
+    "from torch.utils.data import Dataset, TensorDataset\n",
+    "import torch\n",
+    "import transformers\n",
+    "from torchvision import transforms\n",
+    "config = transformers.ViTConfig(\n",
+    "    hidden_size=768,\n",
+    "    num_hidden_layers=12,\n",
+    "    num_attention_heads=12,\n",
+    "    intermediate_size=3072,\n",
+    "    hidden_dropout_prob=0.1,\n",
+    "    attention_probs_dropout_prob=0.1,\n",
+    "    initializer_range=0.02,\n",
+    "    num_channels=1,\n",
+    "    image_size=(129,500),\n",
+    "    patch_size=(8,35)\n",
+    ")\n",
+    "model = ViTModel(config)\n",
+    "model.embeddings.patch_embeddings.projection = torch.nn.Conv2d(1, 768, kernel_size=(8, 36), stride=(8, 36), padding=(0,2))\n",
+    "model.pooler.activation = torch.nn.Sequential(torch.nn.Dropout(p=0.1),\n",
+    "                                               torch.nn.Linear(768,2,bias=True))"
+   ]
+  },
+  {
+   "attachments": {},
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Pretrained model"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "c:\\Users\\yangr\\anaconda3\\envs\\mldl\\lib\\site-packages\\tqdm\\auto.py:22: TqdmWarning: IProgress not found. Please update jupyter and ipywidgets. See https://ipywidgets.readthedocs.io/en/stable/user_install.html\n",
+      "  from .autonotebook import tqdm as notebook_tqdm\n",
+      "Some weights of ViTForImageClassification were not initialized from the model checkpoint at google/vit-base-patch16-224 and are newly initialized because the shapes did not match:\n",
+      "- vit.embeddings.position_embeddings: found shape torch.Size([1, 197, 768]) in the checkpoint and torch.Size([1, 225, 768]) in the model instantiated\n",
+      "- vit.embeddings.patch_embeddings.projection.weight: found shape torch.Size([768, 3, 16, 16]) in the checkpoint and torch.Size([768, 256, 8, 1]) in the model instantiated\n",
+      "You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.\n"
+     ]
+    }
+   ],
+   "source": [
+    "import torch\n",
+    "import transformers\n",
+    "from transformers import ViTModel\n",
+    "from torchvision import transforms\n",
+    "from torch.utils.data import DataLoader\n",
+    "from tqdm import tqdm\n",
+    "# from datasets import load_dataset\n",
+    "import PIL\n",
+    "import numpy as np\n",
+    "import torch\n",
+    "from torch.utils.data import Dataset, TensorDataset\n",
+    "from torch import nn\n",
+    "import transformers\n",
+    "from torchvision import transforms\n",
+    "\n",
+    "model_name = \"google/vit-base-patch16-224\"\n",
+    "config = transformers.ViTConfig.from_pretrained(model_name)\n",
+    "config.update({'num_channels': 256})\n",
+    "config.update({'image_size': (129,14)})\n",
+    "config.update({'patch_size': (8,1)})\n",
+    "# model = ViTModel.from_pretrained('google/vit-base-patch16-224-in21k', config = config, ignore_mismatched_sizes=True)\n",
+    "model = transformers.ViTForImageClassification.from_pretrained(model_name, config=config, ignore_mismatched_sizes=True)\n",
+    "model.vit.embeddings.patch_embeddings.projection = torch.nn.Conv2d(256, 768, kernel_size=(8, 1), stride=(8, 1), padding=(0,0), groups=256)\n",
+    "# model.vit.embeddings.patch_embeddings.projection = torch.nn.Sequential(torch.nn.Conv2d(1, 256, kernel_size=(1, 36), stride=(1, 36), padding=(0,2), bias=False),\n",
+    "#                                                                        torch.nn.BatchNorm2d(256, False),\n",
+    "#                                                                        torch.nn.Conv2d(256, 768, kernel_size=(9, 1), stride=(9, 1), groups=256),\n",
+    "#                                                                        torch.nn.BatchNorm2d(768))\n",
+    "model.classifier=torch.nn.Sequential(torch.nn.Linear(768,1000,bias=True),\n",
+    "                                     torch.nn.Dropout(p=0.1),\n",
+    "                                     torch.nn.Linear(1000,2,bias=True))"
+   ]
+  },
+  {
+   "attachments": {},
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Raw Model"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 18,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "class EEGViT_raw(nn.Module):\n",
+    "    def __init__(self, ViTLayers):\n",
+    "        super().__init__()\n",
+    "        self.conv1 = nn.Conv2d(\n",
+    "            in_channels=1, \n",
+    "            out_channels=256,\n",
+    "            kernel_size=(1, 36),\n",
+    "            stride=(1, 36),\n",
+    "            padding=(0,6),\n",
+    "            bias=False\n",
+    "        )\n",
+    "        self.batchnorm1 = nn.BatchNorm2d(256, False)\n",
+    "        config = transformers.ViTConfig(\n",
+    "            hidden_size=768,\n",
+    "            num_hidden_layers=12,\n",
+    "            num_attention_heads=12,\n",
+    "            intermediate_size=3072,\n",
+    "            hidden_dropout_prob=0.1,\n",
+    "            attention_probs_dropout_prob=0.1,\n",
+    "            initializer_range=0.02,\n",
+    "            num_channels=256,\n",
+    "            image_size=(129,14),\n",
+    "            patch_size=(8,1)\n",
+    "        )\n",
+    "        model = ViTModel(config)\n",
+    "        model.embeddings.patch_embeddings.projection = torch.nn.Conv2d(256, 768, kernel_size=(8, 1), stride=(8, 1), padding=(0,0), groups=256)\n",
+    "        model.pooler.activation = torch.nn.Sequential(torch.nn.Dropout(p=0.1),\n",
+    "                                                       torch.nn.Linear(768,2,bias=True))\n",
+    "        self.ViT = model\n",
+    "        \n",
+    "    def forward(self,x):\n",
+    "        x=self.conv1(x)\n",
+    "        x=self.batchnorm1(x)\n",
+    "        x=self.ViT(x).pooler_output\n",
+    "        \n",
+    "        return x"
+   ]
+  },
+  {
+   "attachments": {},
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Pretrained Model"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 20,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import torch\n",
+    "import transformers\n",
+    "from transformers import ViTModel\n",
+    "from torchvision import transforms\n",
+    "from torch.utils.data import DataLoader\n",
+    "from tqdm import tqdm\n",
+    "# from datasets import load_dataset\n",
+    "import PIL\n",
+    "import numpy as np\n",
+    "import torch\n",
+    "from torch.utils.data import Dataset, TensorDataset\n",
+    "from torch import nn\n",
+    "import transformers\n",
+    "from torchvision import transforms\n",
+    "class EEGViT_pretrained(nn.Module):\n",
+    "    def __init__(self):\n",
+    "        super().__init__()\n",
+    "        self.conv1 = nn.Conv2d(\n",
+    "            in_channels=1, \n",
+    "            out_channels=256,\n",
+    "            kernel_size=(1, 36),\n",
+    "            stride=(1, 36),\n",
+    "            padding=(0,2),\n",
+    "            bias=False\n",
+    "        )\n",
+    "        self.batchnorm1 = nn.BatchNorm2d(256, False)\n",
+    "        model_name = \"google/vit-base-patch16-224\"\n",
+    "        config = transformers.ViTConfig.from_pretrained(model_name)\n",
+    "        config.update({'num_channels': 256})\n",
+    "        config.update({'image_size': (129,14)})\n",
+    "        config.update({'patch_size': (8,1)})\n",
+    "\n",
+    "        model = transformers.ViTForImageClassification.from_pretrained(model_name, config=config, ignore_mismatched_sizes=True)\n",
+    "        model.vit.embeddings.patch_embeddings.projection = torch.nn.Conv2d(256, 768, kernel_size=(8, 1), stride=(8, 1), padding=(0,0), groups=256)\n",
+    "        model.classifier=torch.nn.Sequential(torch.nn.Linear(768,1000,bias=True),\n",
+    "                                     torch.nn.Dropout(p=0.1),\n",
+    "                                     torch.nn.Linear(1000,2,bias=True))\n",
+    "        self.ViT = model\n",
+    "        \n",
+    "    def forward(self,x):\n",
+    "        x=self.conv1(x)\n",
+    "        x=self.batchnorm1(x)\n",
+    "        x=self.ViT.forward(x).logits\n",
+    "        \n",
+    "        return x"
+   ]
+  },
+  {
+   "attachments": {},
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Pretrained Model with one single conv2d"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "c:\\Users\\yangr\\anaconda3\\envs\\mldl\\lib\\site-packages\\tqdm\\auto.py:22: TqdmWarning: IProgress not found. Please update jupyter and ipywidgets. See https://ipywidgets.readthedocs.io/en/stable/user_install.html\n",
+      "  from .autonotebook import tqdm as notebook_tqdm\n"
+     ]
+    }
+   ],
+   "source": [
+    "import torch\n",
+    "import transformers\n",
+    "from transformers import ViTModel\n",
+    "from torchvision import transforms\n",
+    "from torch.utils.data import DataLoader\n",
+    "from tqdm import tqdm\n",
+    "# from datasets import load_dataset\n",
+    "import PIL\n",
+    "import numpy as np\n",
+    "import torch\n",
+    "from torch.utils.data import Dataset, TensorDataset\n",
+    "from torch import nn\n",
+    "import transformers\n",
+    "from torchvision import transforms\n",
+    "class EEGViT_pretrained_naive(nn.Module):\n",
+    "    def __init__(self):\n",
+    "        super().__init__()\n",
+    "        model_name = \"google/vit-base-patch16-224\"\n",
+    "        config = transformers.ViTConfig.from_pretrained(model_name)\n",
+    "        config.update({'num_channels': 1})\n",
+    "        config.update({'image_size': (129,500)})\n",
+    "        config.update({'patch_size': (8,35)})\n",
+    "\n",
+    "        model = transformers.ViTForImageClassification.from_pretrained(model_name, config=config, ignore_mismatched_sizes=True)\n",
+    "        model.vit.embeddings.patch_embeddings.projection = nn.Sequential(torch.nn.Conv2d(1, 768, kernel_size=(8, 36), stride=(8, 36), padding=(0,2)),\n",
+    "                                                                        nn.BatchNorm2d(768))\n",
+    "        model.classifier=torch.nn.Sequential(torch.nn.Linear(768,1000,bias=True),\n",
+    "                                     torch.nn.Dropout(p=0.1),\n",
+    "                                     torch.nn.Linear(1000,2,bias=True))\n",
+    "        self.ViT = model\n",
+    "        \n",
+    "    def forward(self,x):\n",
+    "        x=self.ViT(x).logits\n",
+    "        \n",
+    "        return x"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 21,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "Some weights of ViTForImageClassification were not initialized from the model checkpoint at google/vit-base-patch16-224 and are newly initialized because the shapes did not match:\n",
+      "- vit.embeddings.position_embeddings: found shape torch.Size([1, 197, 768]) in the checkpoint and torch.Size([1, 225, 768]) in the model instantiated\n",
+      "- vit.embeddings.patch_embeddings.projection.weight: found shape torch.Size([768, 3, 16, 16]) in the checkpoint and torch.Size([768, 256, 1, 1]) in the model instantiated\n",
+      "You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.\n"
+     ]
+    }
+   ],
+   "source": [
+    "model = EEGViT_pretrained()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 22,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "ViTModel(\n",
+      "  (embeddings): ViTEmbeddings(\n",
+      "    (patch_embeddings): ViTPatchEmbeddings(\n",
+      "      (projection): Conv2d(1, 256, kernel_size=(1, 36), stride=(1, 36), padding=(0, 2))\n",
+      "    )\n",
+      "    (dropout): Dropout(p=0.1, inplace=False)\n",
+      "  )\n",
+      "  (encoder): ViTEncoder(\n",
+      "    (layer): ModuleList(\n",
+      "      (0): ViTLayer(\n",
+      "        (attention): ViTAttention(\n",
+      "          (attention): ViTSelfAttention(\n",
+      "            (query): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (key): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (value): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (dropout): Dropout(p=0.1, inplace=False)\n",
+      "          )\n",
+      "          (output): ViTSelfOutput(\n",
+      "            (dense): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (dropout): Dropout(p=0.1, inplace=False)\n",
+      "          )\n",
+      "        )\n",
+      "        (intermediate): ViTIntermediate(\n",
+      "          (dense): Linear(in_features=768, out_features=3072, bias=True)\n",
+      "          (intermediate_act_fn): GELUActivation()\n",
+      "        )\n",
+      "        (output): ViTOutput(\n",
+      "          (dense): Linear(in_features=3072, out_features=768, bias=True)\n",
+      "          (dropout): Dropout(p=0.1, inplace=False)\n",
+      "        )\n",
+      "        (layernorm_before): LayerNorm((768,), eps=1e-12, elementwise_affine=True)\n",
+      "        (layernorm_after): LayerNorm((768,), eps=1e-12, elementwise_affine=True)\n",
+      "      )\n",
+      "      (1): ViTLayer(\n",
+      "        (attention): ViTAttention(\n",
+      "          (attention): ViTSelfAttention(\n",
+      "            (query): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (key): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (value): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (dropout): Dropout(p=0.1, inplace=False)\n",
+      "          )\n",
+      "          (output): ViTSelfOutput(\n",
+      "            (dense): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (dropout): Dropout(p=0.1, inplace=False)\n",
+      "          )\n",
+      "        )\n",
+      "        (intermediate): ViTIntermediate(\n",
+      "          (dense): Linear(in_features=768, out_features=3072, bias=True)\n",
+      "          (intermediate_act_fn): GELUActivation()\n",
+      "        )\n",
+      "        (output): ViTOutput(\n",
+      "          (dense): Linear(in_features=3072, out_features=768, bias=True)\n",
+      "          (dropout): Dropout(p=0.1, inplace=False)\n",
+      "        )\n",
+      "        (layernorm_before): LayerNorm((768,), eps=1e-12, elementwise_affine=True)\n",
+      "        (layernorm_after): LayerNorm((768,), eps=1e-12, elementwise_affine=True)\n",
+      "      )\n",
+      "      (2): ViTLayer(\n",
+      "        (attention): ViTAttention(\n",
+      "          (attention): ViTSelfAttention(\n",
+      "            (query): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (key): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (value): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (dropout): Dropout(p=0.1, inplace=False)\n",
+      "          )\n",
+      "          (output): ViTSelfOutput(\n",
+      "            (dense): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (dropout): Dropout(p=0.1, inplace=False)\n",
+      "          )\n",
+      "        )\n",
+      "        (intermediate): ViTIntermediate(\n",
+      "          (dense): Linear(in_features=768, out_features=3072, bias=True)\n",
+      "          (intermediate_act_fn): GELUActivation()\n",
+      "        )\n",
+      "        (output): ViTOutput(\n",
+      "          (dense): Linear(in_features=3072, out_features=768, bias=True)\n",
+      "          (dropout): Dropout(p=0.1, inplace=False)\n",
+      "        )\n",
+      "        (layernorm_before): LayerNorm((768,), eps=1e-12, elementwise_affine=True)\n",
+      "        (layernorm_after): LayerNorm((768,), eps=1e-12, elementwise_affine=True)\n",
+      "      )\n",
+      "      (3): ViTLayer(\n",
+      "        (attention): ViTAttention(\n",
+      "          (attention): ViTSelfAttention(\n",
+      "            (query): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (key): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (value): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (dropout): Dropout(p=0.1, inplace=False)\n",
+      "          )\n",
+      "          (output): ViTSelfOutput(\n",
+      "            (dense): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (dropout): Dropout(p=0.1, inplace=False)\n",
+      "          )\n",
+      "        )\n",
+      "        (intermediate): ViTIntermediate(\n",
+      "          (dense): Linear(in_features=768, out_features=3072, bias=True)\n",
+      "          (intermediate_act_fn): GELUActivation()\n",
+      "        )\n",
+      "        (output): ViTOutput(\n",
+      "          (dense): Linear(in_features=3072, out_features=768, bias=True)\n",
+      "          (dropout): Dropout(p=0.1, inplace=False)\n",
+      "        )\n",
+      "        (layernorm_before): LayerNorm((768,), eps=1e-12, elementwise_affine=True)\n",
+      "        (layernorm_after): LayerNorm((768,), eps=1e-12, elementwise_affine=True)\n",
+      "      )\n",
+      "      (4): ViTLayer(\n",
+      "        (attention): ViTAttention(\n",
+      "          (attention): ViTSelfAttention(\n",
+      "            (query): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (key): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (value): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (dropout): Dropout(p=0.1, inplace=False)\n",
+      "          )\n",
+      "          (output): ViTSelfOutput(\n",
+      "            (dense): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (dropout): Dropout(p=0.1, inplace=False)\n",
+      "          )\n",
+      "        )\n",
+      "        (intermediate): ViTIntermediate(\n",
+      "          (dense): Linear(in_features=768, out_features=3072, bias=True)\n",
+      "          (intermediate_act_fn): GELUActivation()\n",
+      "        )\n",
+      "        (output): ViTOutput(\n",
+      "          (dense): Linear(in_features=3072, out_features=768, bias=True)\n",
+      "          (dropout): Dropout(p=0.1, inplace=False)\n",
+      "        )\n",
+      "        (layernorm_before): LayerNorm((768,), eps=1e-12, elementwise_affine=True)\n",
+      "        (layernorm_after): LayerNorm((768,), eps=1e-12, elementwise_affine=True)\n",
+      "      )\n",
+      "      (5): ViTLayer(\n",
+      "        (attention): ViTAttention(\n",
+      "          (attention): ViTSelfAttention(\n",
+      "            (query): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (key): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (value): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (dropout): Dropout(p=0.1, inplace=False)\n",
+      "          )\n",
+      "          (output): ViTSelfOutput(\n",
+      "            (dense): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (dropout): Dropout(p=0.1, inplace=False)\n",
+      "          )\n",
+      "        )\n",
+      "        (intermediate): ViTIntermediate(\n",
+      "          (dense): Linear(in_features=768, out_features=3072, bias=True)\n",
+      "          (intermediate_act_fn): GELUActivation()\n",
+      "        )\n",
+      "        (output): ViTOutput(\n",
+      "          (dense): Linear(in_features=3072, out_features=768, bias=True)\n",
+      "          (dropout): Dropout(p=0.1, inplace=False)\n",
+      "        )\n",
+      "        (layernorm_before): LayerNorm((768,), eps=1e-12, elementwise_affine=True)\n",
+      "        (layernorm_after): LayerNorm((768,), eps=1e-12, elementwise_affine=True)\n",
+      "      )\n",
+      "      (6): ViTLayer(\n",
+      "        (attention): ViTAttention(\n",
+      "          (attention): ViTSelfAttention(\n",
+      "            (query): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (key): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (value): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (dropout): Dropout(p=0.1, inplace=False)\n",
+      "          )\n",
+      "          (output): ViTSelfOutput(\n",
+      "            (dense): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (dropout): Dropout(p=0.1, inplace=False)\n",
+      "          )\n",
+      "        )\n",
+      "        (intermediate): ViTIntermediate(\n",
+      "          (dense): Linear(in_features=768, out_features=3072, bias=True)\n",
+      "          (intermediate_act_fn): GELUActivation()\n",
+      "        )\n",
+      "        (output): ViTOutput(\n",
+      "          (dense): Linear(in_features=3072, out_features=768, bias=True)\n",
+      "          (dropout): Dropout(p=0.1, inplace=False)\n",
+      "        )\n",
+      "        (layernorm_before): LayerNorm((768,), eps=1e-12, elementwise_affine=True)\n",
+      "        (layernorm_after): LayerNorm((768,), eps=1e-12, elementwise_affine=True)\n",
+      "      )\n",
+      "      (7): ViTLayer(\n",
+      "        (attention): ViTAttention(\n",
+      "          (attention): ViTSelfAttention(\n",
+      "            (query): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (key): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (value): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (dropout): Dropout(p=0.1, inplace=False)\n",
+      "          )\n",
+      "          (output): ViTSelfOutput(\n",
+      "            (dense): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (dropout): Dropout(p=0.1, inplace=False)\n",
+      "          )\n",
+      "        )\n",
+      "        (intermediate): ViTIntermediate(\n",
+      "          (dense): Linear(in_features=768, out_features=3072, bias=True)\n",
+      "          (intermediate_act_fn): GELUActivation()\n",
+      "        )\n",
+      "        (output): ViTOutput(\n",
+      "          (dense): Linear(in_features=3072, out_features=768, bias=True)\n",
+      "          (dropout): Dropout(p=0.1, inplace=False)\n",
+      "        )\n",
+      "        (layernorm_before): LayerNorm((768,), eps=1e-12, elementwise_affine=True)\n",
+      "        (layernorm_after): LayerNorm((768,), eps=1e-12, elementwise_affine=True)\n",
+      "      )\n",
+      "      (8): ViTLayer(\n",
+      "        (attention): ViTAttention(\n",
+      "          (attention): ViTSelfAttention(\n",
+      "            (query): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (key): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (value): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (dropout): Dropout(p=0.1, inplace=False)\n",
+      "          )\n",
+      "          (output): ViTSelfOutput(\n",
+      "            (dense): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (dropout): Dropout(p=0.1, inplace=False)\n",
+      "          )\n",
+      "        )\n",
+      "        (intermediate): ViTIntermediate(\n",
+      "          (dense): Linear(in_features=768, out_features=3072, bias=True)\n",
+      "          (intermediate_act_fn): GELUActivation()\n",
+      "        )\n",
+      "        (output): ViTOutput(\n",
+      "          (dense): Linear(in_features=3072, out_features=768, bias=True)\n",
+      "          (dropout): Dropout(p=0.1, inplace=False)\n",
+      "        )\n",
+      "        (layernorm_before): LayerNorm((768,), eps=1e-12, elementwise_affine=True)\n",
+      "        (layernorm_after): LayerNorm((768,), eps=1e-12, elementwise_affine=True)\n",
+      "      )\n",
+      "      (9): ViTLayer(\n",
+      "        (attention): ViTAttention(\n",
+      "          (attention): ViTSelfAttention(\n",
+      "            (query): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (key): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (value): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (dropout): Dropout(p=0.1, inplace=False)\n",
+      "          )\n",
+      "          (output): ViTSelfOutput(\n",
+      "            (dense): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (dropout): Dropout(p=0.1, inplace=False)\n",
+      "          )\n",
+      "        )\n",
+      "        (intermediate): ViTIntermediate(\n",
+      "          (dense): Linear(in_features=768, out_features=3072, bias=True)\n",
+      "          (intermediate_act_fn): GELUActivation()\n",
+      "        )\n",
+      "        (output): ViTOutput(\n",
+      "          (dense): Linear(in_features=3072, out_features=768, bias=True)\n",
+      "          (dropout): Dropout(p=0.1, inplace=False)\n",
+      "        )\n",
+      "        (layernorm_before): LayerNorm((768,), eps=1e-12, elementwise_affine=True)\n",
+      "        (layernorm_after): LayerNorm((768,), eps=1e-12, elementwise_affine=True)\n",
+      "      )\n",
+      "      (10): ViTLayer(\n",
+      "        (attention): ViTAttention(\n",
+      "          (attention): ViTSelfAttention(\n",
+      "            (query): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (key): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (value): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (dropout): Dropout(p=0.1, inplace=False)\n",
+      "          )\n",
+      "          (output): ViTSelfOutput(\n",
+      "            (dense): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (dropout): Dropout(p=0.1, inplace=False)\n",
+      "          )\n",
+      "        )\n",
+      "        (intermediate): ViTIntermediate(\n",
+      "          (dense): Linear(in_features=768, out_features=3072, bias=True)\n",
+      "          (intermediate_act_fn): GELUActivation()\n",
+      "        )\n",
+      "        (output): ViTOutput(\n",
+      "          (dense): Linear(in_features=3072, out_features=768, bias=True)\n",
+      "          (dropout): Dropout(p=0.1, inplace=False)\n",
+      "        )\n",
+      "        (layernorm_before): LayerNorm((768,), eps=1e-12, elementwise_affine=True)\n",
+      "        (layernorm_after): LayerNorm((768,), eps=1e-12, elementwise_affine=True)\n",
+      "      )\n",
+      "      (11): ViTLayer(\n",
+      "        (attention): ViTAttention(\n",
+      "          (attention): ViTSelfAttention(\n",
+      "            (query): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (key): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (value): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (dropout): Dropout(p=0.1, inplace=False)\n",
+      "          )\n",
+      "          (output): ViTSelfOutput(\n",
+      "            (dense): Linear(in_features=768, out_features=768, bias=True)\n",
+      "            (dropout): Dropout(p=0.1, inplace=False)\n",
+      "          )\n",
+      "        )\n",
+      "        (intermediate): ViTIntermediate(\n",
+      "          (dense): Linear(in_features=768, out_features=3072, bias=True)\n",
+      "          (intermediate_act_fn): GELUActivation()\n",
+      "        )\n",
+      "        (output): ViTOutput(\n",
+      "          (dense): Linear(in_features=3072, out_features=768, bias=True)\n",
+      "          (dropout): Dropout(p=0.1, inplace=False)\n",
+      "        )\n",
+      "        (layernorm_before): LayerNorm((768,), eps=1e-12, elementwise_affine=True)\n",
+      "        (layernorm_after): LayerNorm((768,), eps=1e-12, elementwise_affine=True)\n",
+      "      )\n",
+      "    )\n",
+      "  )\n",
+      "  (layernorm): LayerNorm((768,), eps=1e-12, elementwise_affine=True)\n",
+      "  (pooler): ViTPooler(\n",
+      "    (dense): Linear(in_features=768, out_features=768, bias=True)\n",
+      "    (activation): Sequential(\n",
+      "      (0): Dropout(p=0.1, inplace=False)\n",
+      "      (1): Linear(in_features=768, out_features=2, bias=True)\n",
+      "    )\n",
+      "  )\n",
+      ")\n"
+     ]
+    }
+   ],
+   "source": [
+    "print(model)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "86037506"
+      ]
+     },
+     "execution_count": 3,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "sum(p.numel() for p in model.parameters() if p.requires_grad)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "class EEGEyeNetDataset_raw(Dataset):\n",
+    "    def __init__(self, data_file,transpose = True):\n",
+    "        self.data_file = data_file\n",
+    "        print('loading data...')\n",
+    "        with np.load(self.data_file) as f: # Load the data array\n",
+    "            self.trainX = f['EEG']\n",
+    "            self.trainY = f['labels']\n",
+    "        print(self.trainY)\n",
+    "        if transpose:\n",
+    "            self.trainX = np.transpose(self.trainX, (0,2,1))[:,np.newaxis,:,:]\n",
+    "\n",
+    "    def __getitem__(self, index):\n",
+    "        # Read a single sample of data from the data array\n",
+    "        X = torch.from_numpy(self.trainX[index]).float()\n",
+    "#         X = X.unsqueeze(0)\n",
+    "        y = torch.from_numpy(self.trainY[index,1:3]).float()\n",
+    "        # Return the tensor data\n",
+    "        return (X,y,index)\n",
+    "\n",
+    "    def __len__(self):\n",
+    "        # Compute the number of samples in the data array\n",
+    "        return len(self.trainX)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import math\n",
+    "def split(ids, train, val, test):\n",
+    "    # proportions of train, val, test\n",
+    "    assert (train+val+test == 1)\n",
+    "    IDs = np.unique(ids)\n",
+    "    num_ids = len(IDs)\n",
+    "\n",
+    "    # priority given to the test/val sets\n",
+    "    test_split = math.ceil(test * num_ids)\n",
+    "    val_split = math.ceil(val * num_ids)\n",
+    "    train_split = num_ids - val_split - test_split\n",
+    "\n",
+    "    train = np.where(np.isin(ids, IDs[:train_split]))[0]\n",
+    "    val = np.where(np.isin(ids, IDs[train_split:train_split+val_split]))[0]\n",
+    "    test = np.where(np.isin(ids, IDs[train_split+val_split:]))[0]\n",
+    "    \n",
+    "    return train, val, test"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "loading data...\n",
+      "[[  1.  408.1 315.1]\n",
+      " [  1.  640.7 519.1]\n",
+      " [  1.  404.2 118.8]\n",
+      " ...\n",
+      " [177.  115.5 306.1]\n",
+      " [177.  732.  310.3]\n",
+      " [177.  632.2 353.6]]\n"
+     ]
+    }
+   ],
+   "source": [
+    "EEGEyeNet=EEGEyeNetDataset_raw('./data/Position_task_with_dots_synchronised_min.npz', True)"
+   ]
+  },
+  {
+   "attachments": {},
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Pretrained training"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 22,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "create dataloader...\n",
+      "HI\n",
+      "training...\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "0it [00:00, ?it/s]\n"
+     ]
+    },
+    {
+     "ename": "RuntimeError",
+     "evalue": "shape '[1, 14, 14, 768]' is invalid for input of size 172032",
+     "output_type": "error",
+     "traceback": [
+      "\u001b[1;31m---------------------------------------------------------------------------\u001b[0m",
+      "\u001b[1;31mRuntimeError\u001b[0m                              Traceback (most recent call last)",
+      "Cell \u001b[1;32mIn[22], line 65\u001b[0m\n\u001b[0;32m     61\u001b[0m \u001b[39m# print(inputs)\u001b[39;00m\n\u001b[0;32m     62\u001b[0m \n\u001b[0;32m     63\u001b[0m \u001b[39m# Compute the outputs and loss for the current batch\u001b[39;00m\n\u001b[0;32m     64\u001b[0m optimizer\u001b[39m.\u001b[39mzero_grad()\n\u001b[1;32m---> 65\u001b[0m outputs \u001b[39m=\u001b[39m model(inputs)\n\u001b[0;32m     66\u001b[0m \u001b[39m# print(outputs.shape)\u001b[39;00m\n\u001b[0;32m     67\u001b[0m loss \u001b[39m=\u001b[39m criterion(outputs\u001b[39m.\u001b[39msqueeze(), targets\u001b[39m.\u001b[39msqueeze())\n",
+      "File \u001b[1;32mc:\\Users\\yangr\\anaconda3\\envs\\mldl\\lib\\site-packages\\torch\\nn\\modules\\module.py:1194\u001b[0m, in \u001b[0;36mModule._call_impl\u001b[1;34m(self, *input, **kwargs)\u001b[0m\n\u001b[0;32m   1190\u001b[0m \u001b[39m# If we don't have any hooks, we want to skip the rest of the logic in\u001b[39;00m\n\u001b[0;32m   1191\u001b[0m \u001b[39m# this function, and just call forward.\u001b[39;00m\n\u001b[0;32m   1192\u001b[0m \u001b[39mif\u001b[39;00m \u001b[39mnot\u001b[39;00m (\u001b[39mself\u001b[39m\u001b[39m.\u001b[39m_backward_hooks \u001b[39mor\u001b[39;00m \u001b[39mself\u001b[39m\u001b[39m.\u001b[39m_forward_hooks \u001b[39mor\u001b[39;00m \u001b[39mself\u001b[39m\u001b[39m.\u001b[39m_forward_pre_hooks \u001b[39mor\u001b[39;00m _global_backward_hooks\n\u001b[0;32m   1193\u001b[0m         \u001b[39mor\u001b[39;00m _global_forward_hooks \u001b[39mor\u001b[39;00m _global_forward_pre_hooks):\n\u001b[1;32m-> 1194\u001b[0m     \u001b[39mreturn\u001b[39;00m forward_call(\u001b[39m*\u001b[39m\u001b[39minput\u001b[39m, \u001b[39m*\u001b[39m\u001b[39m*\u001b[39mkwargs)\n\u001b[0;32m   1195\u001b[0m \u001b[39m# Do not call functions when jit is used\u001b[39;00m\n\u001b[0;32m   1196\u001b[0m full_backward_hooks, non_full_backward_hooks \u001b[39m=\u001b[39m [], []\n",
+      "Cell \u001b[1;32mIn[20], line 43\u001b[0m, in \u001b[0;36mEEGViT_pretrained.forward\u001b[1;34m(self, x)\u001b[0m\n\u001b[0;32m     41\u001b[0m x\u001b[39m=\u001b[39m\u001b[39mself\u001b[39m\u001b[39m.\u001b[39mconv1(x)\n\u001b[0;32m     42\u001b[0m x\u001b[39m=\u001b[39m\u001b[39mself\u001b[39m\u001b[39m.\u001b[39mbatchnorm1(x)\n\u001b[1;32m---> 43\u001b[0m x\u001b[39m=\u001b[39m\u001b[39mself\u001b[39;49m\u001b[39m.\u001b[39;49mViT\u001b[39m.\u001b[39;49mforward(x, interpolate_pos_encoding\u001b[39m=\u001b[39;49m\u001b[39mTrue\u001b[39;49;00m)\u001b[39m.\u001b[39mlogits\n\u001b[0;32m     45\u001b[0m \u001b[39mreturn\u001b[39;00m x\n",
+      "File \u001b[1;32mc:\\Users\\yangr\\anaconda3\\envs\\mldl\\lib\\site-packages\\transformers\\models\\vit\\modeling_vit.py:776\u001b[0m, in \u001b[0;36mViTForImageClassification.forward\u001b[1;34m(self, pixel_values, head_mask, labels, output_attentions, output_hidden_states, interpolate_pos_encoding, return_dict)\u001b[0m\n\u001b[0;32m    768\u001b[0m \u001b[39mr\u001b[39m\u001b[39m\"\"\"\u001b[39;00m\n\u001b[0;32m    769\u001b[0m \u001b[39mlabels (`torch.LongTensor` of shape `(batch_size,)`, *optional*):\u001b[39;00m\n\u001b[0;32m    770\u001b[0m \u001b[39m    Labels for computing the image classification/regression loss. Indices should be in `[0, ...,\u001b[39;00m\n\u001b[0;32m    771\u001b[0m \u001b[39m    config.num_labels - 1]`. If `config.num_labels == 1` a regression loss is computed (Mean-Square loss), If\u001b[39;00m\n\u001b[0;32m    772\u001b[0m \u001b[39m    `config.num_labels > 1` a classification loss is computed (Cross-Entropy).\u001b[39;00m\n\u001b[0;32m    773\u001b[0m \u001b[39m\"\"\"\u001b[39;00m\n\u001b[0;32m    774\u001b[0m return_dict \u001b[39m=\u001b[39m return_dict \u001b[39mif\u001b[39;00m return_dict \u001b[39mis\u001b[39;00m \u001b[39mnot\u001b[39;00m \u001b[39mNone\u001b[39;00m \u001b[39melse\u001b[39;00m \u001b[39mself\u001b[39m\u001b[39m.\u001b[39mconfig\u001b[39m.\u001b[39muse_return_dict\n\u001b[1;32m--> 776\u001b[0m outputs \u001b[39m=\u001b[39m \u001b[39mself\u001b[39;49m\u001b[39m.\u001b[39;49mvit(\n\u001b[0;32m    777\u001b[0m     pixel_values,\n\u001b[0;32m    778\u001b[0m     head_mask\u001b[39m=\u001b[39;49mhead_mask,\n\u001b[0;32m    779\u001b[0m     output_attentions\u001b[39m=\u001b[39;49moutput_attentions,\n\u001b[0;32m    780\u001b[0m     output_hidden_states\u001b[39m=\u001b[39;49moutput_hidden_states,\n\u001b[0;32m    781\u001b[0m     interpolate_pos_encoding\u001b[39m=\u001b[39;49minterpolate_pos_encoding,\n\u001b[0;32m    782\u001b[0m     return_dict\u001b[39m=\u001b[39;49mreturn_dict,\n\u001b[0;32m    783\u001b[0m )\n\u001b[0;32m    785\u001b[0m sequence_output \u001b[39m=\u001b[39m outputs[\u001b[39m0\u001b[39m]\n\u001b[0;32m    787\u001b[0m logits \u001b[39m=\u001b[39m \u001b[39mself\u001b[39m\u001b[39m.\u001b[39mclassifier(sequence_output[:, \u001b[39m0\u001b[39m, :])\n",
+      "File \u001b[1;32mc:\\Users\\yangr\\anaconda3\\envs\\mldl\\lib\\site-packages\\torch\\nn\\modules\\module.py:1194\u001b[0m, in \u001b[0;36mModule._call_impl\u001b[1;34m(self, *input, **kwargs)\u001b[0m\n\u001b[0;32m   1190\u001b[0m \u001b[39m# If we don't have any hooks, we want to skip the rest of the logic in\u001b[39;00m\n\u001b[0;32m   1191\u001b[0m \u001b[39m# this function, and just call forward.\u001b[39;00m\n\u001b[0;32m   1192\u001b[0m \u001b[39mif\u001b[39;00m \u001b[39mnot\u001b[39;00m (\u001b[39mself\u001b[39m\u001b[39m.\u001b[39m_backward_hooks \u001b[39mor\u001b[39;00m \u001b[39mself\u001b[39m\u001b[39m.\u001b[39m_forward_hooks \u001b[39mor\u001b[39;00m \u001b[39mself\u001b[39m\u001b[39m.\u001b[39m_forward_pre_hooks \u001b[39mor\u001b[39;00m _global_backward_hooks\n\u001b[0;32m   1193\u001b[0m         \u001b[39mor\u001b[39;00m _global_forward_hooks \u001b[39mor\u001b[39;00m _global_forward_pre_hooks):\n\u001b[1;32m-> 1194\u001b[0m     \u001b[39mreturn\u001b[39;00m forward_call(\u001b[39m*\u001b[39m\u001b[39minput\u001b[39m, \u001b[39m*\u001b[39m\u001b[39m*\u001b[39mkwargs)\n\u001b[0;32m   1195\u001b[0m \u001b[39m# Do not call functions when jit is used\u001b[39;00m\n\u001b[0;32m   1196\u001b[0m full_backward_hooks, non_full_backward_hooks \u001b[39m=\u001b[39m [], []\n",
+      "File \u001b[1;32mc:\\Users\\yangr\\anaconda3\\envs\\mldl\\lib\\site-packages\\transformers\\models\\vit\\modeling_vit.py:561\u001b[0m, in \u001b[0;36mViTModel.forward\u001b[1;34m(self, pixel_values, bool_masked_pos, head_mask, output_attentions, output_hidden_states, interpolate_pos_encoding, return_dict)\u001b[0m\n\u001b[0;32m    554\u001b[0m \u001b[39m# Prepare head mask if needed\u001b[39;00m\n\u001b[0;32m    555\u001b[0m \u001b[39m# 1.0 in head_mask indicate we keep the head\u001b[39;00m\n\u001b[0;32m    556\u001b[0m \u001b[39m# attention_probs has shape bsz x n_heads x N x N\u001b[39;00m\n\u001b[0;32m    557\u001b[0m \u001b[39m# input head_mask has shape [num_heads] or [num_hidden_layers x num_heads]\u001b[39;00m\n\u001b[0;32m    558\u001b[0m \u001b[39m# and head_mask is converted to shape [num_hidden_layers x batch x num_heads x seq_length x seq_length]\u001b[39;00m\n\u001b[0;32m    559\u001b[0m head_mask \u001b[39m=\u001b[39m \u001b[39mself\u001b[39m\u001b[39m.\u001b[39mget_head_mask(head_mask, \u001b[39mself\u001b[39m\u001b[39m.\u001b[39mconfig\u001b[39m.\u001b[39mnum_hidden_layers)\n\u001b[1;32m--> 561\u001b[0m embedding_output \u001b[39m=\u001b[39m \u001b[39mself\u001b[39;49m\u001b[39m.\u001b[39;49membeddings(\n\u001b[0;32m    562\u001b[0m     pixel_values, bool_masked_pos\u001b[39m=\u001b[39;49mbool_masked_pos, interpolate_pos_encoding\u001b[39m=\u001b[39;49minterpolate_pos_encoding\n\u001b[0;32m    563\u001b[0m )\n\u001b[0;32m    565\u001b[0m encoder_outputs \u001b[39m=\u001b[39m \u001b[39mself\u001b[39m\u001b[39m.\u001b[39mencoder(\n\u001b[0;32m    566\u001b[0m     embedding_output,\n\u001b[0;32m    567\u001b[0m     head_mask\u001b[39m=\u001b[39mhead_mask,\n\u001b[1;32m   (...)\u001b[0m\n\u001b[0;32m    570\u001b[0m     return_dict\u001b[39m=\u001b[39mreturn_dict,\n\u001b[0;32m    571\u001b[0m )\n\u001b[0;32m    572\u001b[0m sequence_output \u001b[39m=\u001b[39m encoder_outputs[\u001b[39m0\u001b[39m]\n",
+      "File \u001b[1;32mc:\\Users\\yangr\\anaconda3\\envs\\mldl\\lib\\site-packages\\torch\\nn\\modules\\module.py:1194\u001b[0m, in \u001b[0;36mModule._call_impl\u001b[1;34m(self, *input, **kwargs)\u001b[0m\n\u001b[0;32m   1190\u001b[0m \u001b[39m# If we don't have any hooks, we want to skip the rest of the logic in\u001b[39;00m\n\u001b[0;32m   1191\u001b[0m \u001b[39m# this function, and just call forward.\u001b[39;00m\n\u001b[0;32m   1192\u001b[0m \u001b[39mif\u001b[39;00m \u001b[39mnot\u001b[39;00m (\u001b[39mself\u001b[39m\u001b[39m.\u001b[39m_backward_hooks \u001b[39mor\u001b[39;00m \u001b[39mself\u001b[39m\u001b[39m.\u001b[39m_forward_hooks \u001b[39mor\u001b[39;00m \u001b[39mself\u001b[39m\u001b[39m.\u001b[39m_forward_pre_hooks \u001b[39mor\u001b[39;00m _global_backward_hooks\n\u001b[0;32m   1193\u001b[0m         \u001b[39mor\u001b[39;00m _global_forward_hooks \u001b[39mor\u001b[39;00m _global_forward_pre_hooks):\n\u001b[1;32m-> 1194\u001b[0m     \u001b[39mreturn\u001b[39;00m forward_call(\u001b[39m*\u001b[39m\u001b[39minput\u001b[39m, \u001b[39m*\u001b[39m\u001b[39m*\u001b[39mkwargs)\n\u001b[0;32m   1195\u001b[0m \u001b[39m# Do not call functions when jit is used\u001b[39;00m\n\u001b[0;32m   1196\u001b[0m full_backward_hooks, non_full_backward_hooks \u001b[39m=\u001b[39m [], []\n",
+      "File \u001b[1;32mc:\\Users\\yangr\\anaconda3\\envs\\mldl\\lib\\site-packages\\transformers\\models\\vit\\modeling_vit.py:139\u001b[0m, in \u001b[0;36mViTEmbeddings.forward\u001b[1;34m(self, pixel_values, bool_masked_pos, interpolate_pos_encoding)\u001b[0m\n\u001b[0;32m    137\u001b[0m \u001b[39m# add positional encoding to each token\u001b[39;00m\n\u001b[0;32m    138\u001b[0m \u001b[39mif\u001b[39;00m interpolate_pos_encoding:\n\u001b[1;32m--> 139\u001b[0m     embeddings \u001b[39m=\u001b[39m embeddings \u001b[39m+\u001b[39m \u001b[39mself\u001b[39;49m\u001b[39m.\u001b[39;49minterpolate_pos_encoding(embeddings, height, width)\n\u001b[0;32m    140\u001b[0m \u001b[39melse\u001b[39;00m:\n\u001b[0;32m    141\u001b[0m     embeddings \u001b[39m=\u001b[39m embeddings \u001b[39m+\u001b[39m \u001b[39mself\u001b[39m\u001b[39m.\u001b[39mposition_embeddings\n",
+      "File \u001b[1;32mc:\\Users\\yangr\\anaconda3\\envs\\mldl\\lib\\site-packages\\transformers\\models\\vit\\modeling_vit.py:105\u001b[0m, in \u001b[0;36mViTEmbeddings.interpolate_pos_encoding\u001b[1;34m(self, embeddings, height, width)\u001b[0m\n\u001b[0;32m    102\u001b[0m \u001b[39m# we add a small number to avoid floating point error in the interpolation\u001b[39;00m\n\u001b[0;32m    103\u001b[0m \u001b[39m# see discussion at https://github.com/facebookresearch/dino/issues/8\u001b[39;00m\n\u001b[0;32m    104\u001b[0m h0, w0 \u001b[39m=\u001b[39m h0 \u001b[39m+\u001b[39m \u001b[39m0.1\u001b[39m, w0 \u001b[39m+\u001b[39m \u001b[39m0.1\u001b[39m\n\u001b[1;32m--> 105\u001b[0m patch_pos_embed \u001b[39m=\u001b[39m patch_pos_embed\u001b[39m.\u001b[39;49mreshape(\u001b[39m1\u001b[39;49m, \u001b[39mint\u001b[39;49m(math\u001b[39m.\u001b[39;49msqrt(num_positions)), \u001b[39mint\u001b[39;49m(math\u001b[39m.\u001b[39;49msqrt(num_positions)), dim)\n\u001b[0;32m    106\u001b[0m patch_pos_embed \u001b[39m=\u001b[39m patch_pos_embed\u001b[39m.\u001b[39mpermute(\u001b[39m0\u001b[39m, \u001b[39m3\u001b[39m, \u001b[39m1\u001b[39m, \u001b[39m2\u001b[39m)\n\u001b[0;32m    107\u001b[0m patch_pos_embed \u001b[39m=\u001b[39m nn\u001b[39m.\u001b[39mfunctional\u001b[39m.\u001b[39minterpolate(\n\u001b[0;32m    108\u001b[0m     patch_pos_embed,\n\u001b[0;32m    109\u001b[0m     scale_factor\u001b[39m=\u001b[39m(h0 \u001b[39m/\u001b[39m math\u001b[39m.\u001b[39msqrt(num_positions), w0 \u001b[39m/\u001b[39m math\u001b[39m.\u001b[39msqrt(num_positions)),\n\u001b[0;32m    110\u001b[0m     mode\u001b[39m=\u001b[39m\u001b[39m\"\u001b[39m\u001b[39mbicubic\u001b[39m\u001b[39m\"\u001b[39m,\n\u001b[0;32m    111\u001b[0m     align_corners\u001b[39m=\u001b[39m\u001b[39mFalse\u001b[39;00m,\n\u001b[0;32m    112\u001b[0m )\n",
+      "\u001b[1;31mRuntimeError\u001b[0m: shape '[1, 14, 14, 768]' is invalid for input of size 172032"
+     ]
+    }
+   ],
+   "source": [
+    "import torch\n",
+    "import torch.nn as nn\n",
+    "from torch.utils.data import DataLoader, SubsetRandomSampler, SequentialSampler, Subset\n",
+    "\n",
+    "torch.cuda.empty_cache()\n",
+    "train_indices, val_indices, test_indices = split(EEGEyeNet.trainY[:,0],0.7,0.15,0.15)  # indices for the training set\n",
+    "print('create dataloader...')\n",
+    "batch_size = 64\n",
+    "train = Subset(EEGEyeNet,indices=train_indices)\n",
+    "val = Subset(EEGEyeNet,indices=val_indices)\n",
+    "test = Subset(EEGEyeNet,indices=test_indices)\n",
+    "# Create data loaders for training, validation, and test sets\n",
+    "\n",
+    "train_loader = DataLoader(train, batch_size=batch_size)\n",
+    "val_loader = DataLoader(val, batch_size=batch_size)\n",
+    "test_loader = DataLoader(test, batch_size=batch_size)\n",
+    "\n",
+    "# train_loader = DataLoader(EEGEyeNet, batch_size=batch_size, sampler=SubsetRandomSampler(train_indices))\n",
+    "# val_loader = DataLoader(EEGEyeNet, batch_size=batch_size, sampler=SubsetRandomSampler(val_indices))\n",
+    "# test_loader = DataLoader(EEGEyeNet, batch_size=batch_size, sampler=SubsetRandomSampler(test_indices))\n",
+    "\n",
+    "# Define the model and loss function\n",
+    "# model = model\n",
+    "criterion = nn.MSELoss()\n",
+    "\n",
+    "# Move the model and loss function to the GPU (if available)\n",
+    "if torch.cuda.is_available():\n",
+    "    gpu_id = 0  # Change this to the desired GPU ID if you have multiple GPUs\n",
+    "    torch.cuda.set_device(gpu_id)\n",
+    "    device = torch.device(f\"cuda:{gpu_id}\")\n",
+    "    print(\"HI\")\n",
+    "else:\n",
+    "    device = torch.device(\"cpu\")\n",
+    "if torch.cuda.device_count() > 1:\n",
+    "    model = nn.DataParallel(model)  # Wrap the model with DataParallel\n",
+    "\n",
+    "model = model.to(device)\n",
+    "criterion = criterion.to(device)\n",
+    "\n",
+    "# Define the optimizer and learning rate\n",
+    "optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)\n",
+    "scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=6, gamma=0.1)\n",
+    "\n",
+    "\n",
+    "# Initialize lists to store losses\n",
+    "train_losses = []\n",
+    "val_losses = []\n",
+    "test_losses = []\n",
+    "print('training...')\n",
+    "# Train the model\n",
+    "for epoch in range(15):\n",
+    "    model.train()\n",
+    "    epoch_train_loss = 0.0\n",
+    "\n",
+    "    for i, (inputs, targets, index) in tqdm(enumerate(train_loader)):\n",
+    "        # Move the inputs and targets to the GPU (if available)\n",
+    "        # inputs = np.transpose(inputs,(0,3,2,1))\n",
+    "        # print(inputs.shape)\n",
+    "        inputs = inputs.to(device)\n",
+    "        targets = targets.to(device)\n",
+    "        # print(inputs)\n",
+    "\n",
+    "        # Compute the outputs and loss for the current batch\n",
+    "        optimizer.zero_grad()\n",
+    "        outputs = model(inputs)\n",
+    "        # print(outputs.shape)\n",
+    "        loss = criterion(outputs.squeeze(), targets.squeeze())\n",
+    "\n",
+    "        # Compute the gradients and update the parameters\n",
+    "        \n",
+    "        loss.backward()\n",
+    "        optimizer.step()\n",
+    "        epoch_train_loss += loss.item()\n",
+    "\n",
+    "\n",
+    "        # Print the loss and accuracy for the current batch\n",
+    "        if i % 100 == 0:\n",
+    "            print(f\"Epoch {epoch}, Batch {i}, Loss: {loss.item()}\")\n",
+    "\n",
+    "    # Evaluate the model on the validation set\n",
+    "    epoch_train_loss /= len(train_loader)\n",
+    "    train_losses.append(epoch_train_loss)\n",
+    "    model.eval()\n",
+    "    with torch.no_grad():\n",
+    "        val_loss = 0.0\n",
+    "        val_acc = 0.0\n",
+    "        for inputs, targets, index in val_loader:\n",
+    "            # Move the inputs and targets to the GPU (if available)\n",
+    "            inputs = inputs.to(device)\n",
+    "            targets = targets.to(device)\n",
+    "\n",
+    "            # Compute the outputs and loss for the current batch\n",
+    "            outputs = model(inputs)\n",
+    "            # print(outputs)\n",
+    "            loss = criterion(outputs.squeeze(), targets.squeeze())\n",
+    "            val_loss += loss.item()\n",
+    "\n",
+    "\n",
+    "        val_loss /= len(val_loader)\n",
+    "        val_losses.append(val_loss)\n",
+    "\n",
+    "        # val_acc /= len(val_loader.dataset)\n",
+    "        print(f\"Epoch {epoch}, Val Loss: {val_loss}\")\n",
+    "    with torch.no_grad():\n",
+    "        val_loss = 0.0\n",
+    "        val_acc = 0.0\n",
+    "        for inputs, targets, index in test_loader:\n",
+    "            # Move the inputs and targets to the GPU (if available)\n",
+    "            inputs = inputs.to(device)\n",
+    "            targets = targets.to(device)\n",
+    "\n",
+    "            # Compute the outputs and loss for the current batch\n",
+    "            outputs = model(inputs)\n",
+    "            # print(outputs)\n",
+    "            loss = criterion(outputs.squeeze(), targets.squeeze())\n",
+    "            val_loss += loss.item()\n",
+    "\n",
+    "\n",
+    "        val_loss /= len(test_loader)\n",
+    "        test_losses.append(val_loss)\n",
+    "\n",
+    "        # val_acc /= len(val_loader.dataset)\n",
+    "        print(f\"Epoch {epoch}, test Loss: {val_loss}\")\n",
+    "    scheduler.step()\n",
+    "np.savez(\"losses_pretrained_naive.npz\", train_losses=train_losses, val_losses=val_losses, test_losses=test_losses)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "train_indices, val_indices, test_indices = split(EEGEyeNet.trainY[:,0],0.7,0.15,0.15)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 13,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from torch.utils.data import DataLoader, SubsetRandomSampler, SequentialSampler, Subset"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 9,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "train = Subset(EEGEyeNet,indices=train_indices)\n",
+    "val = Subset(EEGEyeNet,indices=val_indices)\n",
+    "test = Subset(EEGEyeNet,indices=test_indices)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 17,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "(tensor([[[ 4.4768,  5.4814,  9.0846,  ..., -0.1895, -0.4143, -1.9703],\n",
+       "          [ 2.3854,  1.8987,  6.6349,  ...,  8.7381,  5.6761,  2.5891],\n",
+       "          [ 5.2734,  5.0279,  8.0517,  ...,  5.5185,  3.9381,  0.1301],\n",
+       "          ...,\n",
+       "          [ 7.0766,  1.2682,  2.3100,  ...,  6.9196,  7.3775,  4.5380],\n",
+       "          [ 8.3204, -0.4085, -0.6217,  ..., 10.2195,  9.9015,  7.0127],\n",
+       "          [-0.7862, -1.1624,  0.9655,  ..., -2.4812, -1.3620, -1.7947]]]),\n",
+       " tensor([407.7000, 301.2000]),\n",
+       " 18210)"
+      ]
+     },
+     "execution_count": 17,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "EEGEyeNet[18210]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 16,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "(tensor([[[ 4.4768,  5.4814,  9.0846,  ..., -0.1895, -0.4143, -1.9703],\n",
+       "          [ 2.3854,  1.8987,  6.6349,  ...,  8.7381,  5.6761,  2.5891],\n",
+       "          [ 5.2734,  5.0279,  8.0517,  ...,  5.5185,  3.9381,  0.1301],\n",
+       "          ...,\n",
+       "          [ 7.0766,  1.2682,  2.3100,  ...,  6.9196,  7.3775,  4.5380],\n",
+       "          [ 8.3204, -0.4085, -0.6217,  ..., 10.2195,  9.9015,  7.0127],\n",
+       "          [-0.7862, -1.1624,  0.9655,  ..., -2.4812, -1.3620, -1.7947]]]),\n",
+       " tensor([407.7000, 301.2000]),\n",
+       " 18210)"
+      ]
+     },
+     "execution_count": 16,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test[0]"
+   ]
+  },
+  {
+   "attachments": {},
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Raw training"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "torch.cuda.empty_cache()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 27,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "create dataloader...\n",
+      "HI\n",
+      "training...\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "1it [00:00,  1.50it/s]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 0, Batch 0, Loss: 156395.328125\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "201it [01:47,  1.82it/s]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 0, Batch 200, Loss: 30091.669921875\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "236it [02:06,  1.86it/s]\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 0, Val Loss: 29122.029934630104\n",
+      "Epoch 0, test Loss: 28888.499042585783\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "1it [00:00,  1.89it/s]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 1, Batch 0, Loss: 25927.08984375\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "201it [01:45,  1.96it/s]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 1, Batch 200, Loss: 21914.3125\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "236it [02:02,  1.93it/s]\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 1, Val Loss: 24973.830237563776\n",
+      "Epoch 1, test Loss: 25059.469630821077\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "1it [00:00,  1.88it/s]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 2, Batch 0, Loss: 20297.978515625\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "201it [01:45,  2.06it/s]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 2, Batch 200, Loss: 22103.23828125\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "236it [02:02,  1.92it/s]\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 2, Val Loss: 21504.857979910714\n",
+      "Epoch 2, test Loss: 20069.15234375\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "1it [00:00,  1.87it/s]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 3, Batch 0, Loss: 21908.671875\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "201it [01:42,  1.92it/s]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 3, Batch 200, Loss: 15979.0849609375\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "236it [02:00,  1.95it/s]\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 3, Val Loss: 18699.069475446428\n",
+      "Epoch 3, test Loss: 16966.424153645832\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "1it [00:00,  1.85it/s]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 4, Batch 0, Loss: 21754.662109375\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "201it [01:46,  1.84it/s]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 4, Batch 200, Loss: 18324.9375\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "236it [02:05,  1.88it/s]\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 4, Val Loss: 17947.086236447703\n",
+      "Epoch 4, test Loss: 15578.282513786764\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "1it [00:00,  1.78it/s]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 5, Batch 0, Loss: 14176.892578125\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "201it [01:47,  1.86it/s]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 5, Batch 200, Loss: 19213.873046875\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "236it [02:06,  1.86it/s]\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 5, Val Loss: 18160.499920280614\n",
+      "Epoch 5, test Loss: 15609.546281403187\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "1it [00:00,  1.73it/s]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 6, Batch 0, Loss: 19600.81640625\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "201it [01:43,  1.91it/s]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 6, Batch 200, Loss: 12966.0791015625\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "236it [02:01,  1.94it/s]\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 6, Val Loss: 17143.433454241072\n",
+      "Epoch 6, test Loss: 14987.443857230392\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "1it [00:00,  1.35it/s]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 7, Batch 0, Loss: 11814.3203125\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "201it [01:45,  1.87it/s]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 7, Batch 200, Loss: 13081.1484375\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "236it [02:04,  1.89it/s]\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 7, Val Loss: 16931.541434151786\n",
+      "Epoch 7, test Loss: 14660.969132965687\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "1it [00:00,  1.85it/s]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 8, Batch 0, Loss: 15969.0673828125\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "201it [01:45,  1.85it/s]"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 8, Batch 200, Loss: 16676.654296875\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "236it [02:04,  1.89it/s]\n"
+     ]
+    },
+    {
+     "ename": "KeyboardInterrupt",
+     "evalue": "",
+     "output_type": "error",
+     "traceback": [
+      "\u001b[1;31m---------------------------------------------------------------------------\u001b[0m",
+      "\u001b[1;31mKeyboardInterrupt\u001b[0m                         Traceback (most recent call last)",
+      "Cell \u001b[1;32mIn[27], line 95\u001b[0m\n\u001b[0;32m     93\u001b[0m     \u001b[39m# print(outputs)\u001b[39;00m\n\u001b[0;32m     94\u001b[0m     loss \u001b[39m=\u001b[39m criterion(outputs\u001b[39m.\u001b[39msqueeze(), targets\u001b[39m.\u001b[39msqueeze())\n\u001b[1;32m---> 95\u001b[0m     val_loss \u001b[39m+\u001b[39m\u001b[39m=\u001b[39m loss\u001b[39m.\u001b[39;49mitem()\n\u001b[0;32m     96\u001b[0m     \u001b[39m# print(index)\u001b[39;00m\n\u001b[0;32m     99\u001b[0m val_loss \u001b[39m/\u001b[39m\u001b[39m=\u001b[39m \u001b[39mlen\u001b[39m(val_loader)\n",
+      "\u001b[1;31mKeyboardInterrupt\u001b[0m: "
+     ]
+    }
+   ],
+   "source": [
+    "import torch\n",
+    "import torch.nn as nn\n",
+    "from torch.utils.data import DataLoader, SubsetRandomSampler, SequentialSampler, Subset\n",
+    "\n",
+    "torch.cuda.empty_cache()\n",
+    "train_indices, val_indices, test_indices = split(EEGEyeNet.trainY[:,0],0.7,0.15,0.15)  # indices for the training set\n",
+    "print('create dataloader...')\n",
+    "batch_size = 64\n",
+    "train = Subset(EEGEyeNet,indices=train_indices)\n",
+    "val = Subset(EEGEyeNet,indices=val_indices)\n",
+    "test = Subset(EEGEyeNet,indices=test_indices)\n",
+    "# Create data loaders for training, validation, and test sets\n",
+    "\n",
+    "# train_loader = DataLoader(train, batch_size=batch_size)\n",
+    "# val_loader = DataLoader(val, batch_size=batch_size)\n",
+    "# test_loader = DataLoader(test, batch_size=batch_size)\n",
+    "\n",
+    "train_loader = DataLoader(EEGEyeNet, batch_size=batch_size, sampler=SubsetRandomSampler(train_indices))\n",
+    "val_loader = DataLoader(EEGEyeNet, batch_size=batch_size, sampler=SubsetRandomSampler(val_indices))\n",
+    "test_loader = DataLoader(EEGEyeNet, batch_size=batch_size, sampler=SubsetRandomSampler(test_indices))\n",
+    "\n",
+    "# Define the model and loss function\n",
+    "# model = model\n",
+    "criterion = nn.MSELoss()\n",
+    "\n",
+    "# Move the model and loss function to the GPU (if available)\n",
+    "if torch.cuda.is_available():\n",
+    "    gpu_id = 0  # Change this to the desired GPU ID if you have multiple GPUs\n",
+    "    torch.cuda.set_device(gpu_id)\n",
+    "    device = torch.device(f\"cuda:{gpu_id}\")\n",
+    "    print(\"HI\")\n",
+    "else:\n",
+    "    device = torch.device(\"cpu\")\n",
+    "if torch.cuda.device_count() > 1:\n",
+    "    model = nn.DataParallel(model)  # Wrap the model with DataParallel\n",
+    "\n",
+    "model = model.to(device)\n",
+    "criterion = criterion.to(device)\n",
+    "\n",
+    "# Define the optimizer and learning rate\n",
+    "optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)\n",
+    "\n",
+    "\n",
+    "# Initialize lists to store losses\n",
+    "train_losses = []\n",
+    "val_losses = []\n",
+    "test_losses = []\n",
+    "print('training...')\n",
+    "# Train the model\n",
+    "for epoch in range(15):\n",
+    "    model.train()\n",
+    "    epoch_train_loss = 0.0\n",
+    "\n",
+    "    for i, (inputs, targets, index) in tqdm(enumerate(train_loader)):\n",
+    "        # Move the inputs and targets to the GPU (if available)\n",
+    "        # inputs = np.transpose(inputs,(0,3,2,1))\n",
+    "        # print(inputs.shape)\n",
+    "        inputs = inputs.to(device)\n",
+    "        targets = targets.to(device)\n",
+    "        # print(inputs)\n",
+    "\n",
+    "        # Compute the outputs and loss for the current batch\n",
+    "        optimizer.zero_grad()\n",
+    "        outputs = model(inputs).pooler_output\n",
+    "        # print(outputs.shape)\n",
+    "        loss = criterion(outputs.squeeze(), targets.squeeze())\n",
+    "\n",
+    "        # Compute the gradients and update the parameters\n",
+    "        \n",
+    "        loss.backward()\n",
+    "        optimizer.step()\n",
+    "        epoch_train_loss += loss.item()\n",
+    "\n",
+    "\n",
+    "        # Print the loss and accuracy for the current batch\n",
+    "        if i % 200 == 0:\n",
+    "            print(f\"Epoch {epoch}, Batch {i}, Loss: {loss.item()}\")\n",
+    "\n",
+    "    # Evaluate the model on the validation set\n",
+    "    epoch_train_loss /= len(train_loader)\n",
+    "    train_losses.append(epoch_train_loss)\n",
+    "    model.eval()\n",
+    "    with torch.no_grad():\n",
+    "        val_loss = 0.0\n",
+    "        val_acc = 0.0\n",
+    "        for inputs, targets, index in val_loader:\n",
+    "            # Move the inputs and targets to the GPU (if available)\n",
+    "            inputs = inputs.to(device)\n",
+    "            targets = targets.to(device)\n",
+    "\n",
+    "            # Compute the outputs and loss for the current batch\n",
+    "            outputs = model(inputs).pooler_output\n",
+    "            # print(outputs)\n",
+    "            loss = criterion(outputs.squeeze(), targets.squeeze())\n",
+    "            val_loss += loss.item()\n",
+    "            # print(index)\n",
+    "\n",
+    "\n",
+    "        val_loss /= len(val_loader)\n",
+    "        val_losses.append(val_loss)\n",
+    "\n",
+    "        # val_acc /= len(val_loader.dataset)\n",
+    "        print(f\"Epoch {epoch}, Val Loss: {val_loss}\")\n",
+    "    with torch.no_grad():\n",
+    "        val_loss = 0.0\n",
+    "        val_acc = 0.0\n",
+    "        for inputs, targets, index in test_loader:\n",
+    "            # Move the inputs and targets to the GPU (if available)\n",
+    "            inputs = inputs.to(device)\n",
+    "            targets = targets.to(device)\n",
+    "\n",
+    "            # Compute the outputs and loss for the current batch\n",
+    "            outputs = model(inputs).pooler_output\n",
+    "            # print(outputs)\n",
+    "            loss = criterion(outputs.squeeze(), targets.squeeze())\n",
+    "            val_loss += loss.item()\n",
+    "\n",
+    "\n",
+    "        val_loss /= len(test_loader)\n",
+    "        test_losses.append(val_loss)\n",
+    "\n",
+    "        # val_acc /= len(val_loader.dataset)\n",
+    "        print(f\"Epoch {epoch}, test Loss: {val_loss}\")\n",
+    "np.savez(\"losses_raw.npz\", train_losses=train_losses, val_losses=val_losses, test_losses=test_losses)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "array([29660.56659773, 25920.18447457, 23419.9799326 , 22159.57827819,\n",
+       "       21518.71258425, 20497.59530101, 19285.48391544, 17059.88386566,\n",
+       "       16535.31485524, 15933.636106  , 15549.02784161, 15247.97941559,\n",
+       "       15170.031767  , 15356.65385646, 14998.86243873])"
+      ]
+     },
+     "execution_count": 3,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "import numpy as np\n",
+    "np.load('./losses_raw (1).npz')['test_losses']"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3 (ipykernel)",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.9.16"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}
