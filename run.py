@@ -26,6 +26,11 @@ scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=6, gamma=0.1)
 
 
 def train(model, optimizer, scheduler = None):
+    '''
+        model: model to train
+        optimizer: optimizer to update weights
+        scheduler: scheduling learning rate, used when finetuning pretrained models
+    '''
     torch.cuda.empty_cache()
     train_indices, val_indices, test_indices = split(EEGEyeNet.trainY[:,0],0.7,0.15,0.15)  # indices for the training set
     print('create dataloader...')
