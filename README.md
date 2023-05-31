@@ -12,17 +12,7 @@ Additionally, we implemented a variety of deep learning models. These are implem
 The benchmark consists of three tasks: 
 LR (left-right), Direction (Angle, Amplitude) and Coordinates (x,y)
 
-## Installation (Environment)
-
-There are many dependencies in this benchmark and we propose to use anaconda as package manager.
-
-You can install a full environment to run all models (standard machine learning and deep learning models in both pytorch and tensorflow) from the eegeyenet_benchmark.yml file. To do so, run:
-
-```bash
-conda env create -f eegeyenet_benchmark.yml
-```
-
-Otherwise you can also only create a minimal environment that is able to run the models that you want to try (see following section).
+## Installation
 
 ### Requirements
 
@@ -32,7 +22,7 @@ First install the general_requirements.txt
 pip3 install -r general_requirements.txt 
 ```
 
-## Pytorch Requirements
+### Pytorch Requirements
 
 For installation details and cuda versions, visit [pytorch.org](https://pytorch.org/get-started/locally/).
 
