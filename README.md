@@ -11,6 +11,7 @@ Download data for EEGEyeNet absolute position task
 ```bash
 wget -O "./dataset/Position_task_with_dots_synchronised_min.npz" "https://osf.io/download/ge87t/"
 ```
+For more details about EEGEyeNet dataset, please refer to ["EEGEyeNet: a Simultaneous Electroencephalography and Eye-tracking Dataset and Benchmark for Eye Movement Prediction"](https://arxiv.org/abs/2111.05100) and https://osf.io/ktv7m/
 
 ## Installation
 
