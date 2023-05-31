@@ -4,7 +4,7 @@
 EEGViT is a hybrid Vision Transformer (ViT) incorporated with Depthwise Convolution in patch embedding layers. This work is based on 
 Dosovitskiy, et al.'s ["An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale"](https://arxiv.org/abs/2010.11929). After finetuning EEGViT pretrained on ImageNet, it achieves a considerable improvement over the SOTA on the Absolute Position task in EEGEyeNet dataset.
 
-This repository consists of four models: ViT pretrained and non-pretrained; EEGViT pretrained and non-pretrained. The pretrained weights of ViT layers are loaded from [Huggingface](https://huggingface.co)
+This repository consists of four models: ViT pretrained and non-pretrained; EEGViT pretrained and non-pretrained. The pretrained weights of ViT layers are loaded from [Huggingface](https://huggingface.co/docs/transformers/model_doc/vit).
 
 ## Dataset download
 Download data for EEGEyeNet absolute position task
