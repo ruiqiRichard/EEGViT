@@ -4,11 +4,6 @@
 EEGViT is a hybrid Vision Transformer (ViT) incorporated with Depthwise Convolution in patch embedding layers. This work is based on 
 
 
-
-The repository consists of general functionality to run the benchmark and custom implementation of different machine learning models. We offer to run standard ML models (e.g. kNN, SVR, etc.) on the benchmark. The implementation can be found in the StandardML_Models directory.
-
-Additionally, we implemented a variety of deep learning models. These are implemented and can be run in both pytorch and tensorflow.
-
 The benchmark consists of three tasks: 
 LR (left-right), Direction (Angle, Amplitude) and Coordinates (x,y)
 
@@ -23,6 +18,10 @@ pip3 install -r general_requirements.txt
 ```
 
 ### Pytorch Requirements
+
+```bash
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu117
+```
 
 For installation details and cuda versions, visit [pytorch.org](https://pytorch.org/get-started/locally/).
 
