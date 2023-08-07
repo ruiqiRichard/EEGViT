@@ -1,5 +1,6 @@
 ## EEG-Vision Transformer (EEGViT)
 
+Accepted KDD 2023: https://arxiv.org/pdf/2308.00454.pdf
 ## Overview
 EEGViT is a hybrid Vision Transformer (ViT) incorporated with Depthwise Convolution in patch embedding layers. This work is based on 
 Dosovitskiy, et al.'s ["An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale"](https://arxiv.org/abs/2010.11929). After finetuning EEGViT pretrained on ImageNet, it achieves a considerable improvement over the SOTA on the Absolute Position task in EEGEyeNet dataset.
