@@ -34,7 +34,8 @@ def train(model, optimizer, scheduler = None):
     torch.cuda.empty_cache()
     train_indices, val_indices, test_indices = split(EEGEyeNet.trainY[:,0],0.7,0.15,0.15)  # indices for the training set
     print('create dataloader...')
-    
+    criterion = nn.MSELoss()
+
     train = Subset(EEGEyeNet,indices=train_indices)
     val = Subset(EEGEyeNet,indices=val_indices)
     test = Subset(EEGEyeNet,indices=test_indices)
